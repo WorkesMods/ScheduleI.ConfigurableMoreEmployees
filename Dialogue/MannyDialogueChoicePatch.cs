@@ -10,12 +10,6 @@ namespace ConfigurableMoreEmployees
     {
         private const string SelectLocationDialogueLabel = "SELECT_LOCATION";
 
-        private static readonly MannyPropertyChoice[] ManagedChoices =
-        {
-            new MannyPropertyChoice("motelroom", "Motel Room"),
-            new MannyPropertyChoice("seweroffice", "Sewer Office")
-        };
-
         private static void Postfix(
             string dialogueLabel,
             ref Il2CppSystem.Collections.Generic.List<DialogueChoiceData> existingChoices)
@@ -25,22 +19,26 @@ namespace ConfigurableMoreEmployees
                 return;
             }
 
-            foreach (var choice in ManagedChoices)
+            foreach (var definition in PropertyDefinitionRegistry.Definitions)
             {
-                TryAddMissingChoice(existingChoices, choice);
+                if (definition.AddMannyDialogueChoice)
+                {
+                    TryAddMissingChoice(existingChoices, definition);
+                }
             }
         }
 
         private static void TryAddMissingChoice(
             Il2CppSystem.Collections.Generic.List<DialogueChoiceData> existingChoices,
-            MannyPropertyChoice choice)
+            PropertyDefinition definition)
         {
-            if (ContainsChoice(existingChoices, choice.PropertyCode))
+            if (string.IsNullOrWhiteSpace(definition.PropertyCode) ||
+                ContainsChoice(existingChoices, definition.PropertyCode))
             {
                 return;
             }
 
-            var property = GetProperty(choice.PropertyCode);
+            var property = GetProperty(definition.PropertyCode);
             if (property == null || !property.IsOwned || property.EmployeeCapacity <= 0)
             {
                 return;
@@ -49,14 +47,14 @@ namespace ConfigurableMoreEmployees
             var choiceData = new DialogueChoiceData
             {
                 Guid = Guid.NewGuid().ToString(),
-                ChoiceLabel = choice.PropertyCode,
-                ChoiceText = choice.DisplayName,
+                ChoiceLabel = definition.PropertyCode,
+                ChoiceText = definition.DisplayName,
                 ShowWorldspaceDialogue = false
             };
 
             existingChoices.Add(choiceData);
             MainMod.Instance?.VerboseLog(
-                $"Added Manny location choice: {choice.PropertyCode}='{choice.DisplayName}'.");
+                $"Added Manny location choice: {definition.PropertyCode}='{definition.DisplayName}'.");
         }
 
         private static bool ContainsChoice(
@@ -94,16 +92,5 @@ namespace ConfigurableMoreEmployees
             return null;
         }
 
-        private readonly struct MannyPropertyChoice
-        {
-            internal MannyPropertyChoice(string propertyCode, string displayName)
-            {
-                PropertyCode = propertyCode;
-                DisplayName = displayName;
-            }
-
-            internal string PropertyCode { get; }
-            internal string DisplayName { get; }
-        }
     }
 }

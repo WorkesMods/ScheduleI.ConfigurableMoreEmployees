@@ -9,25 +9,28 @@ namespace ConfigurableMoreEmployees
         private readonly Property property;
         private readonly int originalEmployeeCapacity;
         private readonly int originalIdlePointCount;
-        private GameObject debugMarkerRoot;
-        private int debugMarkerCount;
+        private readonly IdlePointMarkerController markerController;
 
-        internal PropertyHandler(PropertyBinding binding, Property property)
+        internal PropertyHandler(PropertyDefinition definition, Property property)
         {
-            Binding = binding;
+            Definition = definition;
             this.property = property;
             originalEmployeeCapacity = property.EmployeeCapacity;
             originalIdlePointCount = property.EmployeeIdlePoints?.Length ?? 0;
+            markerController = new IdlePointMarkerController(
+                definition,
+                property.transform,
+                originalIdlePointCount);
         }
 
-        internal PropertyBinding Binding { get; }
+        internal PropertyDefinition Definition { get; }
 
         internal void ApplyMaxEmployees(int maxEmployees)
         {
             if (maxEmployees < 0)
             {
                 MainMod.Instance.LoggerInstance.Error(
-                    $"{Binding.DisplayName}: configured max employees cannot be negative ({maxEmployees}). Skipping this property.");
+                    $"{Definition.DisplayName}: configured max employees cannot be negative ({maxEmployees}). Skipping this property.");
                 return;
             }
 
@@ -48,7 +51,7 @@ namespace ConfigurableMoreEmployees
 
             property.EmployeeCapacity = maxEmployees;
             MainMod.Instance.LoggerInstance.Msg(
-                $"{Binding.DisplayName}: employee capacity {originalEmployeeCapacity} -> {property.EmployeeCapacity}, idle points {GetIdlePointCount()}");
+                $"{Definition.DisplayName}: employee capacity {originalEmployeeCapacity} -> {property.EmployeeCapacity}, idle points {GetIdlePointCount()}");
         }
 
         internal Vector3 GetIdlePointStartLocation()
@@ -141,67 +144,12 @@ namespace ConfigurableMoreEmployees
 
         internal void SetIdlePointMarkersVisible(bool visible)
         {
-            if (!visible)
-            {
-                ClearIdlePointMarkers();
-                return;
-            }
-
-            var idlePoints = property.EmployeeIdlePoints;
-            if (idlePoints == null || idlePoints.Length == 0)
-            {
-                return;
-            }
-
-            if (debugMarkerRoot != null && debugMarkerCount == idlePoints.Length)
-            {
-                UpdateIdlePointMarkers(idlePoints);
-                return;
-            }
-
-            ClearIdlePointMarkers();
-            debugMarkerRoot = new GameObject($"ConfigurableMoreEmployees_DebugMarkers_{Binding.Key}");
-            debugMarkerRoot.transform.SetParent(property.transform, true);
-
-            for (var i = 0; i < idlePoints.Length; i++)
-            {
-                var idlePoint = idlePoints[i];
-                if (idlePoint == null)
-                {
-                    continue;
-                }
-
-                var color = i < originalIdlePointCount ? Color.green : Color.cyan;
-                IdlePointDebugVisualizer.CreateMarker(debugMarkerRoot.transform, idlePoint.position, color, $"{Binding.Key}_{i}");
-            }
-
-            debugMarkerCount = idlePoints.Length;
+            markerController.SetVisible(property.EmployeeIdlePoints, visible);
         }
 
         internal void ClearIdlePointMarkers()
         {
-            if (debugMarkerRoot == null)
-            {
-                return;
-            }
-
-            Object.Destroy(debugMarkerRoot);
-            debugMarkerRoot = null;
-            debugMarkerCount = 0;
-        }
-
-        private void UpdateIdlePointMarkers(Il2CppReferenceArray<Transform> idlePoints)
-        {
-            for (var i = 0; i < idlePoints.Length && i < debugMarkerRoot.transform.childCount; i++)
-            {
-                var idlePoint = idlePoints[i];
-                if (idlePoint == null)
-                {
-                    continue;
-                }
-
-                debugMarkerRoot.transform.GetChild(i).position = idlePoint.position;
-            }
+            markerController.Clear();
         }
 
         private int GetIdlePointCount()
@@ -211,11 +159,11 @@ namespace ConfigurableMoreEmployees
 
         private bool CreateMissingIdlePoints(IdlePointPlacement[] placements)
         {
-            var template = MainMod.Instance.GetIdlePointTemplate();
+            var template = MainMod.Instance.Service.GetIdlePointTemplate();
             if (template == null)
             {
                 MainMod.Instance.LoggerInstance.Error(
-                    $"{Binding.DisplayName}: no idle point template was available. Skipping this property.");
+                    $"{Definition.DisplayName}: no idle point template was available. Skipping this property.");
                 return false;
             }
 
@@ -236,7 +184,7 @@ namespace ConfigurableMoreEmployees
 
             property.EmployeeIdlePoints = expandedIdlePoints;
             MainMod.Instance.LoggerInstance.Msg(
-                $"{Binding.DisplayName}: expanded idle points {currentCount} -> {property.EmployeeIdlePoints.Length}");
+                $"{Definition.DisplayName}: expanded idle points {currentCount} -> {property.EmployeeIdlePoints.Length}");
             return true;
         }
 

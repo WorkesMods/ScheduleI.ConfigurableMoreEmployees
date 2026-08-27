@@ -14,7 +14,7 @@ namespace ConfigurableMoreEmployees
         internal Transform Create(PropertyHandler handler, IdlePointPlacement placement, int index)
         {
             var clone = Object.Instantiate(template.gameObject);
-            clone.name = $"ConfigurableMoreEmployees_IdlePoint_{handler.Binding.Key}_{index}";
+            clone.name = $"ConfigurableMoreEmployees_IdlePoint_{handler.Definition.Key}_{index}";
 
             var parent = handler.GetIdlePointParent();
             clone.transform.SetParent(parent, true);

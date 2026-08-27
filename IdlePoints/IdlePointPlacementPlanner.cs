@@ -35,22 +35,22 @@ namespace ConfigurableMoreEmployees
         {
             var currentIdlePoints = handler.GetCurrentIdlePointPositions();
             var currentCount = currentIdlePoints.Length;
-            var rule = IdlePointPlacementConstants.GetRule(handler.Binding.Key);
+            var definition = handler.Definition;
             var vanillaIdlePoints = handler.GetVanillaIdlePointPositions();
             var vanillaCount = vanillaIdlePoints.Length;
-            if (vanillaCount != rule.VanillaIdlePointCount)
+            if (vanillaCount != definition.VanillaIdlePointCount)
             {
                 MainMod.Instance.LoggerInstance.Warning(
-                    $"{handler.Binding.DisplayName}: expected {rule.VanillaIdlePointCount} vanilla idle points, found {vanillaCount}.");
+                    $"{definition.DisplayName}: expected {definition.VanillaIdlePointCount} vanilla idle points, found {vanillaCount}.");
             }
 
-            var allGeneratedPlacements = GetAllGeneratedPlacements(handler, rule, vanillaIdlePoints);
+            var allGeneratedPlacements = GetAllGeneratedPlacements(handler, definition);
             var supportedMaxEmployees = vanillaCount + allGeneratedPlacements.Count;
 
             if (targetMaxEmployees > supportedMaxEmployees)
             {
                 return IdlePointPlacementPlan.Fail(
-                    $"{handler.Binding.DisplayName}: requested max {targetMaxEmployees}, " +
+                    $"{definition.DisplayName}: requested max {targetMaxEmployees}, " +
                     $"but placement rules only support {supportedMaxEmployees}. " +
                     $"Increase placement bounds, add explicit points, or lower the configured max.");
             }
@@ -72,42 +72,41 @@ namespace ConfigurableMoreEmployees
 
         private static List<IdlePointPlacement> GetAllGeneratedPlacements(
             PropertyHandler handler,
-            IdlePointPlacementRule rule,
-            Vector3[] vanillaIdlePoints)
+            PropertyDefinition definition)
         {
             var generatedPlacements = new List<IdlePointPlacement>();
-            TryGeneratePlacements(handler, rule, generatedPlacements, int.MaxValue);
+            TryGeneratePlacements(handler, definition, generatedPlacements, int.MaxValue);
             return generatedPlacements;
         }
 
         private static void TryGeneratePlacements(
             PropertyHandler handler,
-            IdlePointPlacementRule rule,
+            PropertyDefinition definition,
             List<IdlePointPlacement> generatedPlacements,
             int requestedGeneratedCount)
         {
-            foreach (var area in rule.Areas)
+            foreach (var area in definition.PlacementAreas)
             {
                 if (generatedPlacements.Count >= requestedGeneratedCount)
                 {
                     return;
                 }
 
-                var startLocation = area.StartLocationProvider(handler);
+                var startLocation = handler.GetIdlePointStartLocation();
                 var bounds = area.BoundsProvider(startLocation);
-                var attemptCount = area.Strategy.GetAttemptCount(rule.MaxAttempts);
+                var attemptCount = area.Strategy.GetAttemptCount(int.MaxValue);
 
                 for (var attempt = 0; attempt < attemptCount && generatedPlacements.Count < requestedGeneratedCount; attempt++)
                 {
                     var placement = area.Strategy.GetPlacement(startLocation, bounds, attempt);
                     if (area.ValidateBounds && !IsInsideBounds(placement.Position, bounds))
                     {
-                        MainMod.Instance.VerboseLog($"{handler.Binding.DisplayName}: rejected idle point outside bounds at {FormatPosition(placement.Position)}.");
+                        MainMod.Instance.VerboseLog($"{definition.DisplayName}: rejected idle point outside bounds at {FormatPosition(placement.Position)}.");
                         continue;
                     }
 
                     generatedPlacements.Add(placement);
-                    MainMod.Instance.VerboseLog($"{handler.Binding.DisplayName}: accepted generated idle point at {FormatPosition(placement.Position)}, y rotation {placement.YRotation:0.##}.");
+                    MainMod.Instance.VerboseLog($"{definition.DisplayName}: accepted generated idle point at {FormatPosition(placement.Position)}, y rotation {placement.YRotation:0.##}.");
                 }
             }
         }

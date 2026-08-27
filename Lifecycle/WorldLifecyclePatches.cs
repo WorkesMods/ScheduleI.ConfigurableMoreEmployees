@@ -10,7 +10,7 @@ namespace ConfigurableMoreEmployees
     {
         private static void Postfix(Property __instance)
         {
-            MainMod.Instance?.RecordPropertyStarted(__instance);
+            MainMod.Instance?.Service?.RecordPropertyStarted(__instance);
         }
     }
 
@@ -19,7 +19,7 @@ namespace ConfigurableMoreEmployees
     {
         private static void Prefix()
         {
-            MainMod.Instance?.BeginWorldLoad(nameof(LoadManager.StartGame));
+            MainMod.Instance?.Service?.BeginWorldLoad(nameof(LoadManager.StartGame));
         }
     }
 
@@ -28,7 +28,7 @@ namespace ConfigurableMoreEmployees
     {
         private static void Prefix()
         {
-            MainMod.Instance?.BeginWorldLoad(nameof(LoadManager.LoadLastSave));
+            MainMod.Instance?.Service?.BeginWorldLoad(nameof(LoadManager.LoadLastSave));
         }
     }
 
@@ -37,7 +37,7 @@ namespace ConfigurableMoreEmployees
     {
         private static void Prefix()
         {
-            MainMod.Instance?.BeginWorldLoad(nameof(LoadManager.LoadAsClient));
+            MainMod.Instance?.Service?.BeginWorldLoad(nameof(LoadManager.LoadAsClient));
         }
     }
 
@@ -46,7 +46,7 @@ namespace ConfigurableMoreEmployees
     {
         private static void Prefix()
         {
-            MainMod.Instance?.BeginWorldLoad(nameof(LoadManager.LoadTutorialAsClient));
+            MainMod.Instance?.Service?.BeginWorldLoad(nameof(LoadManager.LoadTutorialAsClient));
         }
     }
 
@@ -55,7 +55,7 @@ namespace ConfigurableMoreEmployees
     {
         private static void Prefix(SaveInfo autoLoadSave, MainMenuPopup.Data mainMenuPopup, bool preventLeaveLobby)
         {
-            MainMod.Instance?.LeaveWorld(nameof(LoadManager.ExitToMenu));
+            MainMod.Instance?.Service?.LeaveWorld(nameof(LoadManager.ExitToMenu));
         }
     }
 
@@ -64,7 +64,7 @@ namespace ConfigurableMoreEmployees
     {
         private static void Postfix(bool value)
         {
-            MainMod.Instance?.SetWorldLoaded(value, nameof(LoadManager.IsGameLoaded));
+            MainMod.Instance?.Service?.SetWorldLoaded(value, nameof(LoadManager.IsGameLoaded));
         }
     }
 }

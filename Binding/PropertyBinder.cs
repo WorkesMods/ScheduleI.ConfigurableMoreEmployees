@@ -6,54 +6,72 @@ namespace ConfigurableMoreEmployees
 {
     internal sealed class PropertyBindResult
     {
-        private PropertyBindResult(bool success, PropertyHandler[] handlers, string errorMessage)
+        private PropertyBindResult(
+            bool success,
+            PropertyHandler[] handlers,
+            string errorMessage,
+            string[] warnings)
         {
             Success = success;
             Handlers = handlers;
             ErrorMessage = errorMessage;
+            Warnings = warnings;
         }
 
         internal bool Success { get; }
         internal PropertyHandler[] Handlers { get; }
         internal string ErrorMessage { get; }
+        internal string[] Warnings { get; }
 
-        internal static PropertyBindResult Ok(PropertyHandler[] handlers)
+        internal static PropertyBindResult Ok(PropertyHandler[] handlers, string[] warnings)
         {
-            return new PropertyBindResult(true, handlers, string.Empty);
+            return new PropertyBindResult(true, handlers, string.Empty, warnings);
         }
 
         internal static PropertyBindResult Fail(string errorMessage)
         {
-            return new PropertyBindResult(false, new PropertyHandler[0], errorMessage);
+            return new PropertyBindResult(false, new PropertyHandler[0], errorMessage, new string[0]);
         }
     }
 
     internal static class PropertyBinder
     {
-        internal static PropertyBindResult Bind(IReadOnlyList<Property> candidates)
+        internal static PropertyBindResult Bind(
+            IReadOnlyList<Property> candidates,
+            IReadOnlyList<PropertyDefinition> definitions)
         {
             var handlers = new List<PropertyHandler>();
             var errors = new List<string>();
+            var warnings = new List<string>();
 
-            foreach (var binding in PropertyBindingConstants.RequiredBindings)
+            foreach (var definition in definitions)
             {
                 var matches = candidates
-                    .Where(candidate => PropertyFinder.GetGameObjectName(candidate) == binding.GameObjectName)
+                    .Where(candidate => PropertyFinder.GetGameObjectName(candidate) == definition.GameObjectName)
                     .ToArray();
 
                 if (matches.Length == 0)
                 {
-                    errors.Add($"Missing property binding: {binding.DisplayName} ({binding.GameObjectName})");
+                    var message = $"Missing property binding: {definition.DisplayName} ({definition.GameObjectName})";
+                    if (definition.Required)
+                    {
+                        errors.Add(message);
+                    }
+                    else
+                    {
+                        warnings.Add(message);
+                    }
+
                     continue;
                 }
 
                 if (matches.Length > 1)
                 {
-                    errors.Add($"Duplicate property binding: {binding.DisplayName} ({binding.GameObjectName}) matched {matches.Length} candidates");
+                    errors.Add($"Duplicate property binding: {definition.DisplayName} ({definition.GameObjectName}) matched {matches.Length} candidates");
                     continue;
                 }
 
-                handlers.Add(new PropertyHandler(binding, matches[0]));
+                handlers.Add(new PropertyHandler(definition, matches[0]));
             }
 
             if (errors.Count > 0)
@@ -68,7 +86,7 @@ namespace ConfigurableMoreEmployees
                     candidateDetails);
             }
 
-            return PropertyBindResult.Ok(handlers.ToArray());
+            return PropertyBindResult.Ok(handlers.ToArray(), warnings.ToArray());
         }
     }
 }
