@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <EnvFile>$(MSBuildProjectDirectory)\.env</EnvFile>
+    <GameDirFromEnv Condition="Exists('$(EnvFile)')">$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(EnvFile)')), '(?m)^\s*GameDir\s*=\s*&quot;?([^&quot;\r\n#]+)&quot;?\s*(?:#.*)?$').Groups[1].Value.Trim())</GameDirFromEnv>
+    <GameDir Condition="'$(GameDir)' == '' and '$(GameDirFromEnv)' != ''">$(GameDirFromEnv)</GameDir>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AssemblyName>ConfigurableMoreEmployees</AssemblyName>
+    <RootNamespace>ConfigurableMoreEmployees</RootNamespace>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(GameDir)' != ''">
+    <Reference Include="0Harmony">
+      <HintPath>$(GameDir)\MelonLoader\net6\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Runtime">
+      <HintPath>$(GameDir)\MelonLoader\net6\Il2CppInterop.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MelonLoader">
+      <HintPath>$(GameDir)\MelonLoader\net6\MelonLoader.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GameDir)\MelonLoader\Il2CppAssemblies\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppFishNet.Runtime">
+      <HintPath>$(GameDir)\MelonLoader\Il2CppAssemblies\Il2CppFishNet.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>$(GameDir)\MelonLoader\Il2CppAssemblies\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(GameDir)\MelonLoader\Il2CppAssemblies\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(GameDir)\MelonLoader\Il2CppAssemblies\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <Target Name="ValidateGameDir" BeforeTargets="ResolveReferences">
+    <Error
+      Condition="'$(GameDir)' == ''"
+      Text="GameDir is not configured. Copy .envExample to .env, then set GameDir to your Schedule I install folder." />
+    <Error
+      Condition="'$(GameDir)' != '' and !Exists('$(GameDir)\MelonLoader\net6\MelonLoader.dll')"
+      Text="GameDir does not contain MelonLoader net6 files: $(GameDir)" />
+    <Error
+      Condition="'$(GameDir)' != '' and !Exists('$(GameDir)\MelonLoader\Il2CppAssemblies\Assembly-CSharp.dll')"
+      Text="GameDir does not contain generated IL2CPP assemblies. Launch Schedule I with MelonLoader once, then build again. Checked: $(GameDir)\MelonLoader\Il2CppAssemblies" />
+  </Target>
+  <Target Name="CopyToScheduleIMods" AfterTargets="Build" Condition="'$(InstallAfterBuild)' != 'false'">
+    <PropertyGroup>
+      <ModsDir>$(GameDir)\Mods</ModsDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(ModsDir)" />
+    <Copy
+      SourceFiles="$(TargetPath)"
+      DestinationFolder="$(ModsDir)"
+      SkipUnchangedFiles="true" />
+    <Message
+      Importance="high"
+      Text="Copied $(TargetFileName) to $(ModsDir)" />
+  </Target>
+</Project>

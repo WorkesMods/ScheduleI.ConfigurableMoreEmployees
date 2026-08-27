@@ -1,0 +1,180 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace ConfigurableMoreEmployees
+{
+    internal sealed class IdlePointPlacementPlan
+    {
+        private IdlePointPlacementPlan(bool success, IdlePointPlacement[] placements, string errorMessage)
+        {
+            Success = success;
+            Placements = placements;
+            ErrorMessage = errorMessage;
+        }
+
+        internal bool Success { get; }
+        internal IdlePointPlacement[] Placements { get; }
+        internal string ErrorMessage { get; }
+
+        internal static IdlePointPlacementPlan Ok(IdlePointPlacement[] placements)
+        {
+            return new IdlePointPlacementPlan(true, placements, string.Empty);
+        }
+
+        internal static IdlePointPlacementPlan Fail(string errorMessage)
+        {
+            return new IdlePointPlacementPlan(false, new IdlePointPlacement[0], errorMessage);
+        }
+    }
+
+    internal static class IdlePointPlacementPlanner
+    {
+        private const float BoundsEpsilon = 0.001f;
+
+        internal static IdlePointPlacementPlan Plan(PropertyHandler handler, int targetMaxEmployees)
+        {
+            var currentIdlePoints = handler.GetCurrentIdlePointPositions();
+            var currentCount = currentIdlePoints.Length;
+            var rule = IdlePointPlacementConstants.GetRule(handler.Binding.Key);
+            var vanillaIdlePoints = handler.GetVanillaIdlePointPositions();
+            var vanillaCount = vanillaIdlePoints.Length;
+            if (vanillaCount != rule.VanillaIdlePointCount)
+            {
+                MainMod.Instance.LoggerInstance.Warning(
+                    $"{handler.Binding.DisplayName}: expected {rule.VanillaIdlePointCount} vanilla idle points, found {vanillaCount}.");
+            }
+
+            var allGeneratedPlacements = GetAllGeneratedPlacements(handler, rule, vanillaIdlePoints);
+            var supportedMaxEmployees = vanillaCount + allGeneratedPlacements.Count;
+
+            if (targetMaxEmployees > supportedMaxEmployees)
+            {
+                return IdlePointPlacementPlan.Fail(
+                    $"{handler.Binding.DisplayName}: requested max {targetMaxEmployees}, " +
+                    $"but placement rules only support {supportedMaxEmployees}. " +
+                    $"Increase placement bounds, add explicit points, or lower the configured max.");
+            }
+
+            var generatedAlreadyPresent = Mathf.Max(0, currentCount - vanillaCount);
+            if (generatedAlreadyPresent >= allGeneratedPlacements.Count)
+            {
+                return IdlePointPlacementPlan.Ok(new IdlePointPlacement[0]);
+            }
+
+            var missingPlacements = new IdlePointPlacement[allGeneratedPlacements.Count - generatedAlreadyPresent];
+            for (var i = 0; i < missingPlacements.Length; i++)
+            {
+                missingPlacements[i] = allGeneratedPlacements[generatedAlreadyPresent + i];
+            }
+
+            return IdlePointPlacementPlan.Ok(missingPlacements);
+        }
+
+        private static List<IdlePointPlacement> GetAllGeneratedPlacements(
+            PropertyHandler handler,
+            IdlePointPlacementRule rule,
+            Vector3[] vanillaIdlePoints)
+        {
+            var generatedPlacements = new List<IdlePointPlacement>();
+            TryGeneratePlacements(handler, rule, generatedPlacements, int.MaxValue);
+            return generatedPlacements;
+        }
+
+        private static void TryGeneratePlacements(
+            PropertyHandler handler,
+            IdlePointPlacementRule rule,
+            List<IdlePointPlacement> generatedPlacements,
+            int requestedGeneratedCount)
+        {
+            foreach (var area in rule.Areas)
+            {
+                if (generatedPlacements.Count >= requestedGeneratedCount)
+                {
+                    return;
+                }
+
+                var startLocation = area.StartLocationProvider(handler);
+                var bounds = area.BoundsProvider(startLocation);
+                var attemptCount = area.Strategy.GetAttemptCount(rule.MaxAttempts);
+
+                for (var attempt = 0; attempt < attemptCount && generatedPlacements.Count < requestedGeneratedCount; attempt++)
+                {
+                    var placement = area.Strategy.GetPlacement(startLocation, bounds, attempt);
+                    if (area.ValidateBounds && !IsInsideBounds(placement.Position, bounds))
+                    {
+                        MainMod.Instance.VerboseLog($"{handler.Binding.DisplayName}: rejected idle point outside bounds at {FormatPosition(placement.Position)}.");
+                        continue;
+                    }
+
+                    generatedPlacements.Add(placement);
+                    MainMod.Instance.VerboseLog($"{handler.Binding.DisplayName}: accepted generated idle point at {FormatPosition(placement.Position)}, y rotation {placement.YRotation:0.##}.");
+                }
+            }
+        }
+
+        private static string FormatPosition(Vector3 position)
+        {
+            return $"({position.x:0.00}, {position.y:0.00}, {position.z:0.00})";
+        }
+
+        private static bool IsInsideBounds(Vector3 position, Vector2[] bounds)
+        {
+            var point = new Vector2(position.x, position.z);
+            if (IsOnBoundsEdge(point, bounds))
+            {
+                return true;
+            }
+
+            var inside = false;
+
+            for (int i = 0, j = bounds.Length - 1; i < bounds.Length; j = i++)
+            {
+                var current = bounds[i];
+                var previous = bounds[j];
+
+                if ((current.y > point.y) != (previous.y > point.y) &&
+                    point.x < (previous.x - current.x) * (point.y - current.y) / (previous.y - current.y) + current.x)
+                {
+                    inside = !inside;
+                }
+            }
+
+            return inside;
+        }
+
+        private static bool IsOnBoundsEdge(Vector2 point, Vector2[] bounds)
+        {
+            for (int i = 0, j = bounds.Length - 1; i < bounds.Length; j = i++)
+            {
+                if (IsPointOnLineSegment(point, bounds[j], bounds[i]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsPointOnLineSegment(Vector2 point, Vector2 start, Vector2 end)
+        {
+            var segmentX = end.x - start.x;
+            var segmentY = end.y - start.y;
+            var pointX = point.x - start.x;
+            var pointY = point.y - start.y;
+            var cross = segmentX * pointY - segmentY * pointX;
+            if (Mathf.Abs(cross) > BoundsEpsilon)
+            {
+                return false;
+            }
+
+            var dot = pointX * segmentX + pointY * segmentY;
+            if (dot < -BoundsEpsilon)
+            {
+                return false;
+            }
+
+            var segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+            return dot <= segmentLengthSquared + BoundsEpsilon;
+        }
+    }
+}
