@@ -85,6 +85,10 @@ To verify without copying the DLL into the game folder:
 dotnet build -c Release --no-restore -p:GameDir="C:\Program Files (x86)\Steam\steamapps\common\Schedule I" -p:InstallAfterBuild=false
 ```
 
+### Troubleshooting
+
+If the build says `GameDir does not contain generated IL2CPP assemblies`, launch Schedule I with MelonLoader once, wait for the main menu, then close the game and build again. MelonLoader generates the required `MelonLoader\Il2CppAssemblies` files during that first launch.
+
 ## Extension API
 
 Other mods can register additional properties at runtime:
