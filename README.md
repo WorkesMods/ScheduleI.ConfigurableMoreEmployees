@@ -42,32 +42,32 @@ SewerMaxEmployees = 0
 
 Existing preference keys are kept stable for config compatibility. Motel Room and Sewer Office default to `0`, so they must be enabled explicitly before Manny can offer them as employee destinations.
 
-If you want to configure the mod before launching the game with it for the first time, paste a block like this into `UserData\MelonPreferences.cfg`. Values above the supported placement count are allowed; the mod will clamp them to the highest supported value and write a warning to the MelonLoader log.
+If you want to configure the mod before launching the game with it for the first time, paste a block like this into `UserData\MelonPreferences.cfg`.
 
 ```toml
 ["Configurable More Employees"]
 # Maximum employees allowed at the Storage Unit.
-StorageUnitMaxEmployees = 100
+StorageUnitMaxEmployees = 5
 # Maximum employees allowed at the Sweatshop.
-SweatshopMaxEmployees = 100
+SweatshopMaxEmployees = 3
 # Maximum employees allowed at the Bungalow.
-BungalowMaxEmployees = 100
+BungalowMaxEmployees = 7
 # Maximum employees allowed at the Barn.
-BarnMaxEmployees = 15
+BarnMaxEmployees = 13
 # Maximum employees allowed at the Manor.
-ManorMaxEmployees = 100
+ManorMaxEmployees = 17
 # Maximum employees allowed at the Docks Warehouse.
-DocksWarehouseMaxEmployees = 100
+DocksWarehouseMaxEmployees = 17
 # Maximum employees allowed at the Motel.
-MotelMaxEmployees = 100
+MotelMaxEmployees = 0
 # Maximum employees allowed at the Sewer Office.
-SewerMaxEmployees = 100
+SewerMaxEmployees = 0
 
 ["Configurable More Employees Debug"]
 # Shows visible in-world markers for vanilla and generated employee idle points.
-DebugShowIdlePointMarkers = true
+DebugShowIdlePointMarkers = false
 # Logs detailed placement decisions.
-DebugVerboseLogging = true
+DebugVerboseLogging = false
 ```
 
 Debug settings are kept in the `Configurable More Employees Debug` category:
