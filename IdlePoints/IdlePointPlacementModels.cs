@@ -5,6 +5,107 @@ using UnityEngine;
 namespace ConfigurableMoreEmployees
 {
     /// <summary>
+    /// Describes a two-dimensional placement boundary for generated idle points.
+    /// </summary>
+    public abstract class IdlePointBounds
+    {
+        /// <summary>
+        /// Gets the four X/Z bounds points used by bounded placement strategies.
+        /// </summary>
+        /// <param name="startLocation">The original idle point position used as optional context.</param>
+        /// <returns>Four points ordered as A, B, C, D.</returns>
+        public abstract Vector2[] GetPoints(Vector3 startLocation);
+    }
+
+    /// <summary>
+    /// Axis-aligned placement bounds described by two opposite corners.
+    /// </summary>
+    public sealed class AxisAlignedIdlePointBounds : IdlePointBounds
+    {
+        /// <summary>
+        /// Creates axis-aligned bounds from two opposite corners.
+        /// </summary>
+        /// <param name="pointA">First corner.</param>
+        /// <param name="pointC">Opposite corner.</param>
+        public AxisAlignedIdlePointBounds(Vector2 pointA, Vector2 pointC)
+        {
+            PointA = pointA;
+            PointC = pointC;
+        }
+
+        /// <summary>
+        /// First corner supplied by the definition.
+        /// </summary>
+        public Vector2 PointA { get; }
+
+        /// <summary>
+        /// Opposite corner supplied by the definition.
+        /// </summary>
+        public Vector2 PointC { get; }
+
+        public override Vector2[] GetPoints(Vector3 startLocation)
+        {
+            var minX = Mathf.Min(PointA.x, PointC.x);
+            var maxX = Mathf.Max(PointA.x, PointC.x);
+            var minZ = Mathf.Min(PointA.y, PointC.y);
+            var maxZ = Mathf.Max(PointA.y, PointC.y);
+
+            return new[]
+            {
+                new Vector2(minX, minZ),
+                new Vector2(maxX, minZ),
+                new Vector2(maxX, maxZ),
+                new Vector2(minX, maxZ)
+            };
+        }
+    }
+
+    /// <summary>
+    /// Oriented placement bounds described by three corners.
+    /// </summary>
+    public sealed class OrientedIdlePointBounds : IdlePointBounds
+    {
+        /// <summary>
+        /// Creates oriented bounds from corners A, B, and C. Corner D is derived as A + (C - B).
+        /// </summary>
+        /// <param name="pointA">First corner.</param>
+        /// <param name="pointB">Second corner, adjacent to A.</param>
+        /// <param name="pointC">Third corner, adjacent to B.</param>
+        public OrientedIdlePointBounds(Vector2 pointA, Vector2 pointB, Vector2 pointC)
+        {
+            PointA = pointA;
+            PointB = pointB;
+            PointC = pointC;
+        }
+
+        /// <summary>
+        /// First corner.
+        /// </summary>
+        public Vector2 PointA { get; }
+
+        /// <summary>
+        /// Second corner, adjacent to A.
+        /// </summary>
+        public Vector2 PointB { get; }
+
+        /// <summary>
+        /// Third corner, adjacent to B.
+        /// </summary>
+        public Vector2 PointC { get; }
+
+        public override Vector2[] GetPoints(Vector3 startLocation)
+        {
+            return new[]
+            {
+                PointA,
+                PointB,
+                PointC,
+                PointA + (PointC - PointB)
+            };
+        }
+    }
+
+    /// <summary>
     /// Position and yaw rotation for a generated employee idle point.
     /// </summary>
     public readonly struct IdlePointPlacement
@@ -64,7 +165,7 @@ namespace ConfigurableMoreEmployees
     }
 
     /// <summary>
-    /// Direction used for the column axis of a four-point oriented grid.
+    /// Direction used for the column axis of resolved oriented bounds.
     /// </summary>
     public enum OrientedGridColumnDirection
     {
@@ -75,7 +176,7 @@ namespace ConfigurableMoreEmployees
     }
 
     /// <summary>
-    /// Direction used for the row axis of a four-point oriented grid.
+    /// Direction used for the row axis of resolved oriented bounds.
     /// </summary>
     public enum OrientedGridRowDirection
     {
@@ -114,9 +215,8 @@ namespace ConfigurableMoreEmployees
         /// <summary>
         /// Gets the number of placement attempts this strategy can provide.
         /// </summary>
-        /// <param name="ruleMaxAttempts">The maximum attempts requested by the placement rule.</param>
         /// <returns>The number of placements available from this strategy.</returns>
-        public abstract int GetAttemptCount(int ruleMaxAttempts);
+        public abstract int GetAttemptCount();
 
         /// <summary>
         /// Gets a placement for the requested index.
@@ -220,7 +320,7 @@ namespace ConfigurableMoreEmployees
 
         public override bool RequiresBounds => true;
 
-        public override int GetAttemptCount(int ruleMaxAttempts)
+        public override int GetAttemptCount()
         {
             return XCount * ZCount;
         }
@@ -252,7 +352,7 @@ namespace ConfigurableMoreEmployees
     }
 
     /// <summary>
-    /// Places idle points in a grid whose axes are derived from four supplied bounds points.
+    /// Places idle points in a grid whose axes are derived from oriented bounds.
     /// </summary>
     public sealed class OrientedGridIdlePointPlacementStrategy : IdlePointPlacementStrategy
     {
@@ -329,7 +429,7 @@ namespace ConfigurableMoreEmployees
 
         public override bool RequiresBounds => true;
 
-        public override int GetAttemptCount(int ruleMaxAttempts)
+        public override int GetAttemptCount()
         {
             return ColumnCount * RowCount;
         }
@@ -429,7 +529,7 @@ namespace ConfigurableMoreEmployees
         /// </summary>
         public IdlePointPlacement[] Placements { get; }
 
-        public override int GetAttemptCount(int ruleMaxAttempts)
+        public override int GetAttemptCount()
         {
             return Placements.Length;
         }
@@ -450,30 +550,30 @@ namespace ConfigurableMoreEmployees
         /// </summary>
         /// <param name="strategy">Strategy that generates placements without bounds.</param>
         public IdlePointPlacementArea(IdlePointPlacementStrategy strategy)
-            : this(null, strategy, false)
+            : this((IdlePointBounds)null, strategy, false)
         {
         }
 
         /// <summary>
         /// Creates a bounded idle point placement area.
         /// </summary>
-        /// <param name="boundsProvider">Returns four bounds points for the area, using the source idle point as context.</param>
+        /// <param name="bounds">Bounds used by the placement strategy.</param>
         /// <param name="strategy">Strategy that generates placements inside or from the area.</param>
         /// <param name="validateBounds">Whether generated points should be checked against the area bounds.</param>
         public IdlePointPlacementArea(
-            Func<Vector3, Vector2[]> boundsProvider,
+            IdlePointBounds bounds,
             IdlePointPlacementStrategy strategy,
             bool validateBounds = true)
         {
-            BoundsProvider = boundsProvider;
+            Bounds = bounds;
             Strategy = strategy;
             ValidateBounds = validateBounds;
         }
 
         /// <summary>
-        /// Returns four bounds points for the area, using the source idle point as context.
+        /// Bounds used by the placement strategy.
         /// </summary>
-        public Func<Vector3, Vector2[]> BoundsProvider { get; }
+        public IdlePointBounds Bounds { get; }
 
         /// <summary>
         /// Strategy that generates placements inside or from the area.

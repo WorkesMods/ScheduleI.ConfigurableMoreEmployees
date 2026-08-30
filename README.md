@@ -12,7 +12,7 @@ The mod uses standard MelonPreferences and works without Mod Manager - Phone App
 
 When Mod Manager - Phone App is installed, it can display and edit the same settings in-game. Configurable More Employees listens for Mod Manager save events through reflection, so changed values can be applied without restarting when possible. The phone app is a soft dependency and is not required at build time or runtime.
 
-Employee capacity is only raised after the mod has enough idle points for the configured max. Missing idle points are generated at runtime from a cloned vanilla idle point. If a property cannot place enough idle points, that property is skipped and the rest continue.
+Employee capacity is only raised after the mod has enough idle points for the configured max. Missing idle points are generated at runtime from a cloned vanilla idle point.
 
 If a configured employee cap is higher than the number of supported idle point placements for that property, the value is clamped to the highest supported value and a warning is written to the MelonLoader log. The saved preference is not rewritten.
 
@@ -101,7 +101,9 @@ Other mods can register additional properties at runtime:
 
 ```csharp
 using ConfigurableMoreEmployees;
-using UnityEngine;
+using static ConfigurableMoreEmployees.GridAxisDirection;
+using static ConfigurableMoreEmployees.GridFillOrder;
+using static ConfigurableMoreEmployees.IdlePointPlacementDsl;
 
 ConfigurableMoreEmployeesApi.RegisterProperty(new PropertyDefinition(
     key: "ExampleProperty",
@@ -113,23 +115,18 @@ ConfigurableMoreEmployeesApi.RegisterProperty(new PropertyDefinition(
     addMannyDialogueChoice: true,
     placementAreas: new[]
     {
-        new IdlePointPlacementArea(
-            startLocation => new[]
-            {
-                new Vector2(startLocation.x - 1f, startLocation.z - 1f),
-                new Vector2(startLocation.x + 1f, startLocation.z - 1f),
-                new Vector2(startLocation.x + 1f, startLocation.z + 1f),
-                new Vector2(startLocation.x - 1f, startLocation.z + 1f)
-            },
-            new GridIdlePointPlacementStrategy(
-                height: null,
-                xCount: 2,
-                zCount: 2,
-                margin: 0.1f,
-                yRotation: 0f,
-                xDirection: GridAxisDirection.Positive,
-                zDirection: GridAxisDirection.Positive,
-                fillOrder: GridFillOrder.XMajor))
+        Grid(
+            Box(
+                Point2(10f, 20f),
+                Point2(14f, 24f)),
+            height: null,
+            xCount: 2,
+            zCount: 2,
+            yRotation: 0f,
+            xDirection: Positive,
+            zDirection: Positive,
+            fillOrder: XMajor,
+            margin: 0.1f)
     }));
 ```
 
@@ -149,67 +146,61 @@ Property definition fields:
 - `preferenceDescription`: optional config UI/help text.
 - `required`: whether the property must be present before the mod binds and applies employee limits. Vanilla definitions are required. Custom definitions default to optional, but a custom-property mod can set this to `true` if its property should participate in the load-readiness gate.
 
-Placement strategies:
+Placement helpers:
 
-- `ExplicitIdlePointPlacementStrategy` uses exact world positions and does not need bounds.
-- `GridIdlePointPlacementStrategy` fills an axis-aligned rectangle.
-- `OrientedGridIdlePointPlacementStrategy` fills a four-point area whose axes do not need to align to world X/Z.
+- `Explicit(...)` uses exact world positions and does not need bounds.
+- `Grid(Box(...), ...)` fills an axis-aligned rectangle created from two opposite corners.
+- `OrientedGrid(OrientedBox(...), ...)` fills a three-point oriented area whose axes do not need to align to world X/Z. The fourth corner is derived internally.
 
 Use `height: null` when generated idle points should reuse the height of the cloned source idle point. Use a fixed height when a property needs points placed on a specific floor or platform.
 
-Small `ExplicitIdlePointPlacementStrategy` example:
+Coordinate notes:
+
+- `Point(x, y, z, yRotation)` creates a 3D idle point. The fourth value is the Y-axis rotation in degrees, which controls which way the employee faces.
+- `Point2(x, z)` creates a 2D X/Z coordinate for bounds.
+- `Box(pointA, pointC)` creates a straight, axis-aligned rectangle from two opposite corners.
+- `OrientedBox(pointA, pointB, pointC)` creates an angled rectangle from three corners. `pointA -> pointB` is one edge of the rectangle, `pointB -> pointC` is the adjacent edge, and the fourth corner is derived as `pointA + (pointC - pointB)`.
+- For `OrientedGrid(...)`, the point order gives the derived bounds corners in `A, B, C, D` order. `columnDirection` chooses which bounds edge is the column axis, such as `PointAToPointB` or `PointBToPointA`. `rowDirection` chooses which adjacent edge is the row axis, such as `PointAToPointD` or `PointBToPointC`. So the same three oriented-box points can be filled in different directions by changing the column and row directions.
+
+Small `Explicit(...)` example:
 
 ```csharp
-new IdlePointPlacementArea(
-    new ExplicitIdlePointPlacementStrategy(new[]
-    {
-        new IdlePointPlacement(new Vector3(10f, 0f, 20f), 180f),
-        new IdlePointPlacement(new Vector3(11f, 0f, 20f), 180f)
-    }))
+Explicit(
+    Point(10f, 0f, 20f, 180f),
+    Point(11f, 0f, 20f, 180f))
 ```
 
-Small `GridIdlePointPlacementStrategy` example:
+Small `Grid(Box(...), ...)` example:
 
 ```csharp
-new IdlePointPlacementArea(
-    startLocation => new[]
-    {
-        new Vector2(10f, 20f),
-        new Vector2(14f, 20f),
-        new Vector2(14f, 24f),
-        new Vector2(10f, 24f)
-    },
-    new GridIdlePointPlacementStrategy(
-        height: null,
-        xCount: 2,
-        zCount: 2,
-        margin: 0.2f,
-        yRotation: 180f,
-        xDirection: GridAxisDirection.Positive,
-        zDirection: GridAxisDirection.Positive,
-        fillOrder: GridFillOrder.XMajor))
+Grid(
+    Box(
+        Point2(10f, 20f),
+        Point2(14f, 24f)),
+    height: null,
+    xCount: 2,
+    zCount: 2,
+    yRotation: 180f,
+    xDirection: Positive,
+    zDirection: Positive,
+    fillOrder: XMajor)
 ```
 
-Small `OrientedGridIdlePointPlacementStrategy` example:
+Small `OrientedGrid(OrientedBox(...), ...)` example:
 
 ```csharp
-new IdlePointPlacementArea(
-    startLocation => new[]
-    {
-        new Vector2(10f, 20f),
-        new Vector2(13f, 22f),
-        new Vector2(11f, 25f),
-        new Vector2(8f, 23f)
-    },
-    new OrientedGridIdlePointPlacementStrategy(
-        height: 0f,
-        columnCount: 2,
-        rowCount: 2,
-        margin: 0.2f,
-        yRotation: 45f,
-        columnDirection: OrientedGridColumnDirection.PointAToPointB,
-        rowDirection: OrientedGridRowDirection.PointAToPointD,
-        fillOrder: OrientedGridFillOrder.ColumnMajor))
+OrientedGrid(
+    OrientedBox(
+        pointA: Point2(10f, 20f),
+        pointB: Point2(13f, 22f),
+        pointC: Point2(11f, 25f)),
+    height: 0f,
+    columnCount: 2,
+    rowCount: 2,
+    yRotation: 45f,
+    columnDirection: OrientedGridColumnDirection.PointAToPointB,
+    rowDirection: OrientedGridRowDirection.PointAToPointD,
+    fillOrder: OrientedGridFillOrder.ColumnMajor)
 ```
 
 ## How It Works
@@ -224,9 +215,9 @@ The mod waits for a real world load, then binds once for that world instance:
 - `LoadManager.set_IsGameLoaded(false)` is ignored because it fires repeatedly during startup and menu transitions.
 - `Property.Start` is counted as properties come alive.
 
-The bind/apply step is allowed only after all required property definitions have reached `Property.Start`. Earlier versions used an observed vanilla property-start count of `13`, which was larger than the supported property list because the game also starts business/RV-like/non-target properties. The current approach tracks the required definitions themselves instead, so custom-property mods can participate in readiness by registering a required definition rather than depending on a hardcoded vanilla count.
+The bind/apply step is allowed only after all required property definitions have reached `Property.Start`. The current approach tracks the required definitions themselves, so custom-property mods can participate in readiness by registering a required definition rather than depending on a hardcoded vanilla count.
 
-Once binding is allowed, the mod finds the configured properties, locates their employee-capacity data, finds an existing idle point to use as a clone template, generates any missing idle points required for the configured caps, and only then raises capacity. If enough idle points cannot be generated for one property, that property is skipped while the rest continue.
+Once binding is allowed, the mod finds the configured properties, locates their employee-capacity data, finds an existing idle point to use as a clone template, generates any missing idle points required for the configured caps, and only then raises capacity. If a configured cap is higher than the available placement rules support, that property is clamped to the supported maximum.
 
 This timing matters because the game loads saved employees and validates assignments while the world is loading. Applying too early can hit menu/bootstrap objects or incomplete property instances. Applying too late can let the game restore employees against vanilla capacities, causing extra employees to be lost or fail to restore correctly. The current timing is the tested compromise: wait for real world objects, ignore noisy unload signals, bind once per world instance, and reset cleanly when leaving or rejoining.
 

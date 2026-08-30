@@ -101,7 +101,7 @@ namespace ConfigurableMoreEmployees
                 }
 
                 var startLocation = handler.GetIdlePointStartLocation();
-                var bounds = area.BoundsProvider?.Invoke(startLocation);
+                var bounds = area.Bounds?.GetPoints(startLocation);
                 if (bounds == null && area.Strategy.RequiresBounds)
                 {
                     MainMod.Instance.LoggerInstance.Warning(
@@ -109,7 +109,7 @@ namespace ConfigurableMoreEmployees
                     continue;
                 }
 
-                var attemptCount = area.Strategy.GetAttemptCount(int.MaxValue);
+                var attemptCount = area.Strategy.GetAttemptCount();
 
                 for (var attempt = 0; attempt < attemptCount && generatedPlacements.Count < requestedGeneratedCount; attempt++)
                 {

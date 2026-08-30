@@ -4,7 +4,7 @@ using MelonLoader;
 [assembly: MelonInfo(
     typeof(ConfigurableMoreEmployees.MainMod),
     "Configurable More Employees",
-    "0.1.0",
+    "1.0.0",
     "Workes")]
 [assembly: MelonGame("TVGS", "Schedule I")]
 
