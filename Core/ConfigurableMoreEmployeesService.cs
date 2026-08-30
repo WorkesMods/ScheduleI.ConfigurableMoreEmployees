@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -7,9 +8,9 @@ namespace ConfigurableMoreEmployees
     internal sealed class ConfigurableMoreEmployeesService
     {
         private readonly EmployeeLimitPreferences preferences;
+        private readonly HashSet<string> requiredPropertiesStarted = new HashSet<string>(StringComparer.Ordinal);
         private PropertyHandler[] propertyHandlers = Array.Empty<PropertyHandler>();
         private Transform idlePointTemplate;
-        private int propertiesStartedThisScene;
         private bool expectedPropertiesStarted;
         private bool bindingAttemptedForScene;
         private bool deactivated;
@@ -67,16 +68,25 @@ namespace ConfigurableMoreEmployees
                 return;
             }
 
-            propertiesStartedThisScene++;
+            var gameObjectName = PropertyFinder.GetGameObjectName(property);
+            var requiredDefinition = PropertyDefinitionRegistry.Definitions.FirstOrDefault(
+                definition => definition.Required &&
+                    string.Equals(definition.GameObjectName, gameObjectName, StringComparison.Ordinal));
+            if (requiredDefinition == null)
+            {
+                return;
+            }
 
-            if (propertiesStartedThisScene < PropertyBindingConstants.ExpectedPropertyStartCount || expectedPropertiesStarted)
+            requiredPropertiesStarted.Add(requiredDefinition.GameObjectName);
+
+            if (!HaveRequiredPropertiesStarted() || expectedPropertiesStarted)
             {
                 return;
             }
 
             expectedPropertiesStarted = true;
             MainMod.Instance.LoggerInstance.Msg(
-                $"Detected {propertiesStartedThisScene}/{PropertyBindingConstants.ExpectedPropertyStartCount} properties.");
+                $"Detected all {requiredPropertiesStarted.Count} required properties.");
             TryBindAndApplyForCurrentScene();
         }
 
@@ -87,7 +97,7 @@ namespace ConfigurableMoreEmployees
                 return;
             }
 
-            if (propertiesStartedThisScene < PropertyBindingConstants.ExpectedPropertyStartCount)
+            if (!HaveRequiredPropertiesStarted())
             {
                 return;
             }
@@ -157,12 +167,19 @@ namespace ConfigurableMoreEmployees
                 handler.ClearIdlePointMarkers();
             }
 
+            requiredPropertiesStarted.Clear();
             propertyHandlers = Array.Empty<PropertyHandler>();
             idlePointTemplate = null;
-            propertiesStartedThisScene = 0;
             expectedPropertiesStarted = false;
             bindingAttemptedForScene = false;
             deactivated = false;
+        }
+
+        private bool HaveRequiredPropertiesStarted()
+        {
+            return PropertyDefinitionRegistry.Definitions
+                .Where(definition => definition.Required)
+                .All(definition => requiredPropertiesStarted.Contains(definition.GameObjectName));
         }
 
         private void ApplyConfiguredMaxEmployees()

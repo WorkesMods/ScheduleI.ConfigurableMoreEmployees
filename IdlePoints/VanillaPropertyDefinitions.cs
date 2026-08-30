@@ -186,10 +186,7 @@ namespace ConfigurableMoreEmployees
 
         private static IdlePointPlacementArea Explicit(params IdlePointPlacement[] placements)
         {
-            return new IdlePointPlacementArea(
-                CreateDefaultBounds,
-                new ExplicitIdlePointPlacementStrategy(placements),
-                false);
+            return new IdlePointPlacementArea(new ExplicitIdlePointPlacementStrategy(placements));
         }
 
         private static IdlePointPlacementArea Grid(
@@ -236,17 +233,6 @@ namespace ConfigurableMoreEmployees
                     columnDirection,
                     rowDirection,
                     fillOrder));
-        }
-
-        private static Vector2[] CreateDefaultBounds(Vector3 startLocation)
-        {
-            return new[]
-            {
-                new Vector2(startLocation.x, startLocation.z),
-                new Vector2(startLocation.x, startLocation.z),
-                new Vector2(startLocation.x, startLocation.z),
-                new Vector2(startLocation.x, startLocation.z)
-            };
         }
     }
 }

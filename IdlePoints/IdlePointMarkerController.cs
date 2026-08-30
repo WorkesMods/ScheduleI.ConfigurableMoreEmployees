@@ -9,7 +9,6 @@ namespace ConfigurableMoreEmployees
         private readonly Transform propertyTransform;
         private readonly int originalIdlePointCount;
         private GameObject markerRoot;
-        private int markerCount;
 
         internal IdlePointMarkerController(
             PropertyDefinition definition,
@@ -21,7 +20,11 @@ namespace ConfigurableMoreEmployees
             this.originalIdlePointCount = originalIdlePointCount;
         }
 
-        internal void SetVisible(Il2CppReferenceArray<Transform> idlePoints, bool visible)
+        internal void SetVisible(
+            Il2CppReferenceArray<Transform> idlePoints,
+            IdlePointPlacement[] supportedGeneratedPlacements,
+            int configuredGeneratedIdlePointCount,
+            bool visible)
         {
             if (!visible)
             {
@@ -29,14 +32,9 @@ namespace ConfigurableMoreEmployees
                 return;
             }
 
-            if (idlePoints == null || idlePoints.Length == 0)
+            if ((idlePoints == null || idlePoints.Length == 0) &&
+                (supportedGeneratedPlacements == null || supportedGeneratedPlacements.Length == 0))
             {
-                return;
-            }
-
-            if (markerRoot != null && markerCount == idlePoints.Length)
-            {
-                Update(idlePoints);
                 return;
             }
 
@@ -44,19 +42,28 @@ namespace ConfigurableMoreEmployees
             markerRoot = new GameObject($"ConfigurableMoreEmployees_DebugMarkers_{definition.Key}");
             markerRoot.transform.SetParent(propertyTransform, true);
 
-            for (var i = 0; i < idlePoints.Length; i++)
+            if (idlePoints != null)
             {
-                var idlePoint = idlePoints[i];
-                if (idlePoint == null)
+                for (var i = 0; i < idlePoints.Length; i++)
                 {
-                    continue;
-                }
+                    var idlePoint = idlePoints[i];
+                    if (idlePoint == null)
+                    {
+                        continue;
+                    }
 
-                var color = i < originalIdlePointCount ? Color.green : Color.cyan;
-                IdlePointDebugVisualizer.CreateMarker(markerRoot.transform, idlePoint.position, color, $"{definition.Key}_{i}");
+                    var color = GetExistingIdlePointMarkerColor(i, configuredGeneratedIdlePointCount);
+                    IdlePointDebugVisualizer.CreateMarker(markerRoot.transform, idlePoint.position, color, $"{definition.Key}_{i}");
+                }
             }
 
-            markerCount = idlePoints.Length;
+            var existingGeneratedIdlePointCount = idlePoints != null
+                ? Mathf.Max(0, idlePoints.Length - originalIdlePointCount)
+                : 0;
+            CreateUnusedPlacementMarkers(
+                supportedGeneratedPlacements,
+                configuredGeneratedIdlePointCount,
+                existingGeneratedIdlePointCount);
         }
 
         internal void Clear()
@@ -68,20 +75,40 @@ namespace ConfigurableMoreEmployees
 
             Object.Destroy(markerRoot);
             markerRoot = null;
-            markerCount = 0;
         }
 
-        private void Update(Il2CppReferenceArray<Transform> idlePoints)
+        private Color GetExistingIdlePointMarkerColor(int idlePointIndex, int configuredGeneratedIdlePointCount)
         {
-            for (var i = 0; i < idlePoints.Length && i < markerRoot.transform.childCount; i++)
+            if (idlePointIndex < originalIdlePointCount)
             {
-                var idlePoint = idlePoints[i];
-                if (idlePoint == null)
-                {
-                    continue;
-                }
+                return Color.green;
+            }
 
-                markerRoot.transform.GetChild(i).position = idlePoint.position;
+            var generatedIndex = idlePointIndex - originalIdlePointCount;
+            return generatedIndex < configuredGeneratedIdlePointCount
+                ? Color.cyan
+                : new Color(0.6f, 0f, 1f);
+        }
+
+        private void CreateUnusedPlacementMarkers(
+            IdlePointPlacement[] supportedGeneratedPlacements,
+            int configuredGeneratedIdlePointCount,
+            int existingGeneratedIdlePointCount)
+        {
+            if (supportedGeneratedPlacements == null)
+            {
+                return;
+            }
+
+            var purple = new Color(0.6f, 0f, 1f);
+            var firstPreviewIndex = Mathf.Max(configuredGeneratedIdlePointCount, existingGeneratedIdlePointCount);
+            for (var i = firstPreviewIndex; i < supportedGeneratedPlacements.Length; i++)
+            {
+                IdlePointDebugVisualizer.CreateMarker(
+                    markerRoot.transform,
+                    supportedGeneratedPlacements[i].Position,
+                    purple,
+                    $"{definition.Key}_Unused_{i}");
             }
         }
     }

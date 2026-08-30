@@ -49,7 +49,7 @@ namespace ConfigurableMoreEmployees
                 }
             }
 
-            property.EmployeeCapacity = maxEmployees;
+            property.EmployeeCapacity = placementPlan.MaxEmployees;
             MainMod.Instance.LoggerInstance.Msg(
                 $"{Definition.DisplayName}: employee capacity {originalEmployeeCapacity} -> {property.EmployeeCapacity}, idle points {GetIdlePointCount()}");
         }
@@ -144,7 +144,11 @@ namespace ConfigurableMoreEmployees
 
         internal void SetIdlePointMarkersVisible(bool visible)
         {
-            markerController.SetVisible(property.EmployeeIdlePoints, visible);
+            markerController.SetVisible(
+                property.EmployeeIdlePoints,
+                IdlePointPlacementPlanner.GetSupportedGeneratedPlacements(this),
+                GetConfiguredGeneratedIdlePointCount(),
+                visible);
         }
 
         internal void ClearIdlePointMarkers()
@@ -155,6 +159,11 @@ namespace ConfigurableMoreEmployees
         private int GetIdlePointCount()
         {
             return property.EmployeeIdlePoints?.Length ?? 0;
+        }
+
+        private int GetConfiguredGeneratedIdlePointCount()
+        {
+            return Mathf.Max(0, property.EmployeeCapacity - originalIdlePointCount);
         }
 
         private bool CreateMissingIdlePoints(IdlePointPlacement[] placements)

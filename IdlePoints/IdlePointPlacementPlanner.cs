@@ -5,25 +5,27 @@ namespace ConfigurableMoreEmployees
 {
     internal sealed class IdlePointPlacementPlan
     {
-        private IdlePointPlacementPlan(bool success, IdlePointPlacement[] placements, string errorMessage)
+        private IdlePointPlacementPlan(bool success, IdlePointPlacement[] placements, int maxEmployees, string errorMessage)
         {
             Success = success;
             Placements = placements;
+            MaxEmployees = maxEmployees;
             ErrorMessage = errorMessage;
         }
 
         internal bool Success { get; }
         internal IdlePointPlacement[] Placements { get; }
+        internal int MaxEmployees { get; }
         internal string ErrorMessage { get; }
 
-        internal static IdlePointPlacementPlan Ok(IdlePointPlacement[] placements)
+        internal static IdlePointPlacementPlan Ok(IdlePointPlacement[] placements, int maxEmployees)
         {
-            return new IdlePointPlacementPlan(true, placements, string.Empty);
+            return new IdlePointPlacementPlan(true, placements, maxEmployees, string.Empty);
         }
 
         internal static IdlePointPlacementPlan Fail(string errorMessage)
         {
-            return new IdlePointPlacementPlan(false, new IdlePointPlacement[0], errorMessage);
+            return new IdlePointPlacementPlan(false, new IdlePointPlacement[0], 0, errorMessage);
         }
     }
 
@@ -46,28 +48,34 @@ namespace ConfigurableMoreEmployees
 
             var allGeneratedPlacements = GetAllGeneratedPlacements(handler, definition);
             var supportedMaxEmployees = vanillaCount + allGeneratedPlacements.Count;
+            var maxEmployees = Mathf.Min(targetMaxEmployees, supportedMaxEmployees);
 
             if (targetMaxEmployees > supportedMaxEmployees)
             {
-                return IdlePointPlacementPlan.Fail(
-                    $"{definition.DisplayName}: requested max {targetMaxEmployees}, " +
-                    $"but placement rules only support {supportedMaxEmployees}. " +
-                    $"Increase placement bounds, add explicit points, or lower the configured max.");
+                MainMod.Instance.LoggerInstance.Warning(
+                    $"{definition.DisplayName}: attempted to configure {targetMaxEmployees} employees, " +
+                    $"but placement rules support {supportedMaxEmployees}. Clamping to {supportedMaxEmployees}.");
             }
 
             var generatedAlreadyPresent = Mathf.Max(0, currentCount - vanillaCount);
-            if (generatedAlreadyPresent >= allGeneratedPlacements.Count)
+            var generatedNeeded = Mathf.Max(0, maxEmployees - vanillaCount);
+            if (generatedAlreadyPresent >= generatedNeeded)
             {
-                return IdlePointPlacementPlan.Ok(new IdlePointPlacement[0]);
+                return IdlePointPlacementPlan.Ok(new IdlePointPlacement[0], maxEmployees);
             }
 
-            var missingPlacements = new IdlePointPlacement[allGeneratedPlacements.Count - generatedAlreadyPresent];
+            var missingPlacements = new IdlePointPlacement[generatedNeeded - generatedAlreadyPresent];
             for (var i = 0; i < missingPlacements.Length; i++)
             {
                 missingPlacements[i] = allGeneratedPlacements[generatedAlreadyPresent + i];
             }
 
-            return IdlePointPlacementPlan.Ok(missingPlacements);
+            return IdlePointPlacementPlan.Ok(missingPlacements, maxEmployees);
+        }
+
+        internal static IdlePointPlacement[] GetSupportedGeneratedPlacements(PropertyHandler handler)
+        {
+            return GetAllGeneratedPlacements(handler, handler.Definition).ToArray();
         }
 
         private static List<IdlePointPlacement> GetAllGeneratedPlacements(
@@ -93,13 +101,22 @@ namespace ConfigurableMoreEmployees
                 }
 
                 var startLocation = handler.GetIdlePointStartLocation();
-                var bounds = area.BoundsProvider(startLocation);
+                var bounds = area.BoundsProvider?.Invoke(startLocation);
+                if (bounds == null && area.Strategy.RequiresBounds)
+                {
+                    MainMod.Instance.LoggerInstance.Warning(
+                        $"{definition.DisplayName}: skipped placement area because {area.Strategy.GetType().Name} requires bounds.");
+                    continue;
+                }
+
                 var attemptCount = area.Strategy.GetAttemptCount(int.MaxValue);
 
                 for (var attempt = 0; attempt < attemptCount && generatedPlacements.Count < requestedGeneratedCount; attempt++)
                 {
-                    var placement = area.Strategy.GetPlacement(startLocation, bounds, attempt);
-                    if (area.ValidateBounds && !IsInsideBounds(placement.Position, bounds))
+                    var placement = bounds == null
+                        ? area.Strategy.GetPlacement(startLocation, attempt)
+                        : area.Strategy.GetPlacement(startLocation, bounds, attempt);
+                    if (area.ValidateBounds && bounds != null && !IsInsideBounds(placement.Position, bounds))
                     {
                         MainMod.Instance.VerboseLog($"{definition.DisplayName}: rejected idle point outside bounds at {FormatPosition(placement.Position)}.");
                         continue;

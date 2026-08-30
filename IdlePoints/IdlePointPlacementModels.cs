@@ -107,6 +107,11 @@ namespace ConfigurableMoreEmployees
     public abstract class IdlePointPlacementStrategy
     {
         /// <summary>
+        /// Gets whether this strategy needs bounds from its placement area.
+        /// </summary>
+        public virtual bool RequiresBounds => false;
+
+        /// <summary>
         /// Gets the number of placement attempts this strategy can provide.
         /// </summary>
         /// <param name="ruleMaxAttempts">The maximum attempts requested by the placement rule.</param>
@@ -117,10 +122,24 @@ namespace ConfigurableMoreEmployees
         /// Gets a placement for the requested index.
         /// </summary>
         /// <param name="startLocation">The original idle point position used as a fallback reference.</param>
+        /// <param name="index">Zero-based placement index.</param>
+        /// <returns>The generated idle point placement.</returns>
+        public virtual IdlePointPlacement GetPlacement(Vector3 startLocation, int index)
+        {
+            throw new NotSupportedException($"{GetType().Name} requires placement bounds.");
+        }
+
+        /// <summary>
+        /// Gets a placement for the requested index using bounds supplied by the placement area.
+        /// </summary>
+        /// <param name="startLocation">The original idle point position used as a fallback reference.</param>
         /// <param name="bounds">The four bounds points supplied by the placement area.</param>
         /// <param name="index">Zero-based placement index.</param>
         /// <returns>The generated idle point placement.</returns>
-        public abstract IdlePointPlacement GetPlacement(Vector3 startLocation, Vector2[] bounds, int index);
+        public virtual IdlePointPlacement GetPlacement(Vector3 startLocation, Vector2[] bounds, int index)
+        {
+            return GetPlacement(startLocation, index);
+        }
     }
 
     /// <summary>
@@ -198,6 +217,8 @@ namespace ConfigurableMoreEmployees
         /// Whether X or Z advances first.
         /// </summary>
         public GridFillOrder FillOrder { get; }
+
+        public override bool RequiresBounds => true;
 
         public override int GetAttemptCount(int ruleMaxAttempts)
         {
@@ -306,6 +327,8 @@ namespace ConfigurableMoreEmployees
         /// </summary>
         public OrientedGridFillOrder FillOrder { get; }
 
+        public override bool RequiresBounds => true;
+
         public override int GetAttemptCount(int ruleMaxAttempts)
         {
             return ColumnCount * RowCount;
@@ -411,19 +434,28 @@ namespace ConfigurableMoreEmployees
             return Placements.Length;
         }
 
-        public override IdlePointPlacement GetPlacement(Vector3 startLocation, Vector2[] bounds, int index)
+        public override IdlePointPlacement GetPlacement(Vector3 startLocation, int index)
         {
             return Placements[index];
         }
     }
 
     /// <summary>
-    /// Defines a bounded area and strategy for generating extra idle points.
+    /// Defines an area and strategy for generating extra idle points.
     /// </summary>
     public sealed class IdlePointPlacementArea
     {
         /// <summary>
-        /// Creates an idle point placement area.
+        /// Creates an unbounded idle point placement area.
+        /// </summary>
+        /// <param name="strategy">Strategy that generates placements without bounds.</param>
+        public IdlePointPlacementArea(IdlePointPlacementStrategy strategy)
+            : this(null, strategy, false)
+        {
+        }
+
+        /// <summary>
+        /// Creates a bounded idle point placement area.
         /// </summary>
         /// <param name="boundsProvider">Returns four bounds points for the area, using the source idle point as context.</param>
         /// <param name="strategy">Strategy that generates placements inside or from the area.</param>
